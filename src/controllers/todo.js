@@ -15,9 +15,11 @@ module.exports = (app) => {
       try {
         res.json(
           await repository.addTodo(
+            req.headers['current-socket-id'],
             req.body.description,
             req.body.name,
             req.body.email,
+            true,
           ),
         );
       } catch (err) {
@@ -29,6 +31,7 @@ module.exports = (app) => {
       try {
         res.json(
           await repository.changeStatus(
+            req.headers['current-socket-id'],
             req.body.id,
           ),
         );
@@ -40,7 +43,9 @@ module.exports = (app) => {
     async generateTodos(req, res) {
       try {
         res.json(
-          await repository.generateTodos(),
+          await repository.generateTodos(
+            req.headers['current-socket-id'],
+          ),
         );
       } catch (err) {
         throw err;

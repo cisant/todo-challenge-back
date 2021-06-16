@@ -12,7 +12,7 @@ module.exports = (app) => {
       };
     },
 
-    async addTodo(description, name, email) {
+    async addTodo(currentSocketId, description, name, email, notify) {
       const validateEmail = await axios.get(`http://apilayer.net/api/check?access_key=${process.env.MAILBOX_KEY}&email=${email}`);
       const { data } = validateEmail;
 
@@ -37,11 +37,13 @@ module.exports = (app) => {
         returnObject.valid = true;
       }
 
-      app.repositories.todo.notifyUpdateTodoList();
+      if (notify) {
+        app.repositories.todo.notifyUpdateTodoList(currentSocketId);
+      }
       return returnObject;
     },
 
-    async changeStatus(id) {
+    async changeStatus(currentSocketId, id) {
       const todo = await app.db.models.TodoItem.findOne({ where: { id } });
       const status = todo.status === 'Pending' ? 'Done' : 'Pending';
       let moves = todo.moves;
@@ -55,11 +57,11 @@ module.exports = (app) => {
 
       await todo.update({ status, moves });
 
-      app.repositories.todo.notifyUpdateTodoList();
+      app.repositories.todo.notifyUpdateTodoList(currentSocketId);
       return true;
     },
 
-    async generateTodos() {
+    async generateTodos(currentSocketId) {
       const response = await axios.get('https://cat-fact.herokuapp.com/facts');
       const { data } = response;
 
@@ -69,20 +71,31 @@ module.exports = (app) => {
       for (let i = 0; i <= 2; i++) {
         if (facts.length > 0) {
           const position = Math.floor(Math.random() * (facts.length));
-          promises.push(app.repositories.todo.addTodo(facts[position].text, process.env.TODO_GENERATED_NAME, process.env.TODO_GENERATED_EMAIL));
+          promises.push(
+            app.repositories.todo.addTodo(
+              currentSocketId,
+              facts[position].text,
+              process.env.TODO_GENERATED_NAME,
+              process.env.TODO_GENERATED_EMAIL,
+              false,
+            ),
+          );
 
           facts.splice(position, 1);
         }
       }
 
       await Promise.all(promises);
+      this.notifyUpdateTodoList(currentSocketId);
 
       return true;
     },
 
-    async notifyUpdateTodoList() {
+    async notifyUpdateTodoList(currentSocketId) {
       for (let i = 0; i < app.socket.clients.length; i++) {
-        app.socket.clients[i].emit('UPDATE_TODO_LIST');
+        if (app.socket.clients[i].id !== currentSocketId) {
+          app.socket.clients[i].emit('UPDATE_TODO_LIST');
+        }
       }
     },
   };
